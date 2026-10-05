@@ -378,12 +378,12 @@ export const register: Register = on => {
     if (open === 'list') rows.push(...(rows.length ? [blank('gap')] : []), blank('newlist'), ...liveUnder(-1))
     const isEmpty = !rows.length
     // The foot: a row that starts a sublist, with the words that hide what is done at its right end
-    // (only where something is done), and under it a row that starts a task at the end of the last list.
+    // (only where something is done), and under it a row that starts a task in General.
     const finished = lines.filter(line => isDone(line)).length
     rows.push(
       ...(rows.length && open !== 'list' ? [blank('gap')] : []),
       { ...blank('foot'), label: 'list', note: !finished ? '' : isHiding ? `Show ${finished} done` : 'Hide done' },
-      { ...blank('foot', heads.at(-1) ?? -1), label: 'task' },
+      { ...blank('foot'), label: 'task' },
     )
 
     // An icon is a picture laid on row `at` (placed against that row's own box), in a slot the list leaves clear there: the list cannot

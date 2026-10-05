@@ -139,6 +139,12 @@ for (const surface of ['terminal', 'desktop'] as const)
       await pane.input({ key: await fieldKey(), text: 'eggs', kind: 'change' })
       await away()
       expect(state.file).toMatch(/- \[ \] milk\n- \[ \] eggs\n/)
+      // a click on the row's own marks is that mark's, though it takes the keyboard from the field
+      await click(EDGE, 3)
+      await pane.redraw({ ...PANE.props, isFocused: true } as never)
+      await pane.redraw({ ...PANE.props, isFocused: false } as never)
+      expect(JSON.stringify(await pane.drawn())).toContain('tl-name-')
+      await away()
       // the cross closes it unkept
       await click(EDGE, 3)
       await pane.input({ key: await fieldKey(), text: 'thrown away', kind: 'change' })
@@ -240,12 +246,12 @@ for (const surface of ['terminal', 'desktop'] as const)
     await click(WIDE - 5, 1)
     expect(state.file).not.toMatch(/renamed/)
 
-    // the foot's last row starts a task at the end of the last list, the row above it a sublist
+    // the foot's last row starts a task in General, the row above it a sublist
     await click(2, (await rows()) - 1)
     expect(await typing()).toBe(true)
     await type('last')
     await key('return')
-    expect(state.file).toMatch(/- \[ \] last\n- \[x\] sandwich/)
+    expect(state.file).toMatch(/-->\n\n- \[ \] last\n\n+## test/)
     await away()
     await click(2, (await rows()) - 2)
     expect(await typing()).toBe(true)

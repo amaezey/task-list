@@ -8,7 +8,7 @@ export type Row = {
   // fixed heading over the tasks in no sublist; 'new' and 'newlist' are the row a new name is typed
   // in; 'foot' is one of the pane's last two rows: `label` 'list' starts a new sublist, and its `note`
   // is the words at its right end that hide the done tasks or show them again (empty when nothing is
-  // done); `label` 'task' starts a new task at the end of the last list, whose heading is its `line`
+  // done); `label` 'task' starts a new task in General, the tasks in no sublist
   // 'sub' is a sub-item of the task above it: a checkbox line indented under it in the file
   kind: 'task' | 'list' | 'gap' | 'more' | 'sub' | 'top' | 'new' | 'newlist' | 'foot'
   // the line of TASKS.md the row shows; for 'new', the heading line of the list it adds to
@@ -241,7 +241,9 @@ const List: ClientModule<Props, Held> = (props, surface) => {
   // The pane giving up the keyboard (a click into the chat, say) is a click away too. Only a change
   // from holding it to not holding it counts, so a surface that never reports holding it closes nothing.
   if (typed && props.hasKeys) heldKeys = true
-  if (typed && heldKeys && !props.hasKeys) keep()
+  // (not on a terminal: there the name is typed in the terminal's own field, and any click in the
+  // list takes the keyboard from that field first, so the click itself says what it is for)
+  if (typed && heldKeys && !props.hasKeys && !props.isGrid) keep()
   // from here on `typed` may be null with a typing row still in `rows`: nothing below may assume it
   // A task that is opened out shuts when the person clicks away from it: on an empty part of the
   // list here, or out of the pane, which is the pane giving up the keyboard.

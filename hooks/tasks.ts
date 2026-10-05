@@ -107,8 +107,10 @@ export const insert = (lines: string[], head: number, add: string | string[]): [
   let at = head + 1
   while (at < lines.length && !LIST.test(lines[at])) at++
   while (at > head + 1 && !lines[at - 1].trim()) at--
+  // the comment at the top of the file stands a blank line apart from the first task under it
+  const gap = lines[at - 1]?.startsWith('<!--') ? [''] : []
 
-  return [[...lines.slice(0, at), ...[add].flat(), ...lines.slice(at)], at]
+  return [[...lines.slice(0, at), ...gap, ...[add].flat(), ...lines.slice(at)], at + gap.length]
 }
 
 export const addList = (lines: string[], name: string) => {
