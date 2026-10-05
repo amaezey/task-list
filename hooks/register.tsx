@@ -7,6 +7,10 @@ import { LIST, TASK, bare, shield, addList, addNote, addUnder, drop, dropList, f
 
 const PANE = 'task-list'
 const FILE = 'TASKS.md'
+// The pane, and the width it asks for when docked beside the terminal's transcript: enough for a
+// name, a count and the row's marks, so the list fills its column instead of floating in it. (A
+// width the person drags the dock to wins; the desktop app and the inline block ignore it.)
+const OPEN = { id: PANE, title: 'Tasks', columns: 46 }
 // The file says what it is to whoever opens it, person or agent: its first line, written once.
 const NOTE = '<!-- Tasks, one per line: "- [ ] to do" or "- [x] done". "## Name" starts a sublist. Indent a task\'s notes under it. The Tasks panel shows this file. -->'
 // The one tool agents get. Its description is the whole briefing: what the list is, where it lives
@@ -195,7 +199,7 @@ export const register: Register = on => {
     if (e.surface === 'terminal' && (did.act === 'add' || did.act === 'addList' || did.act === 'edit')) {
       await update($, draft, () => '')
       await update($, field, now => now + 1)
-      void $.ui.open({ id: PANE, title: 'Tasks', focus: true }).catch(() => {})
+      void $.ui.open({ ...OPEN, focus: true }).catch(() => {})
     }
     if (did.act === 'tick') await change($, line, label, lines => tick(lines, line))
     else if (did.act === 'drop') await change($, line, label, lines => drop(lines, line, did.before ?? null))
@@ -273,13 +277,13 @@ export const register: Register = on => {
     await update($, hideDone, () => isHidden)
     // The pane opens by itself only in a folder that has a task list. Anywhere else it waits for
     // /task, so a session about something else is not handed an empty panel.
-    if (await $.fs.exists(FILE).catch(() => false)) void $.ui.open({ id: PANE, title: 'Tasks' }).catch(() => {})
+    if (await $.fs.exists(FILE).catch(() => false)) void $.ui.open(OPEN).catch(() => {})
 
     return next(e)
   })
 
   on('command.run', { command: 'task' }, async ($, e) => {
-    await $.ui.open({ id: PANE, title: 'Tasks' })
+    await $.ui.open(OPEN)
     const task = e.args.trim()
     if (!task) {
       await load($)
@@ -427,7 +431,8 @@ export const register: Register = on => {
     const down = Math.max(total, Math.max(e.viewport?.rows ?? 0, e.props.scroll?.bodyRows ?? 0) - 3)
 
     return (
-      <Box flexDirection="column" paddingTop={1} paddingBottom={2}>
+      // (a terminal pane has its own top row, with its close mark, so the list starts right under it there)
+      <Box flexDirection="column" paddingTop={isGrid ? 0 : 1} paddingBottom={2}>
         {isEmpty && <Text dimColor>Nothing to do yet.</Text>}
         <Box flexDirection="column" height={down}>
           {rows.map((_, at) => (
