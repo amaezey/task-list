@@ -310,12 +310,11 @@ for (const surface of ['terminal', 'desktop'] as const)
     expect(await drawn()).toContain('ask about parking')
     await click(EDGE, 1)
     expect(await drawn()).not.toContain('ask about parking')
-    // a sub-item under the task is a row of its own, ticked where it stands, and the task stays open
+    // an indented checkbox line under a task is one of its notes: it is read, not ticked
     await click(EDGE, 1)
+    expect(await drawn()).toContain('- [ ] ring the venue')
     await click(5, 3)
-    expect(state.file).toMatch(/- \[ \] a\n  ask about parking\n  - \[x\] ring the venue\n/)
-    expect(await drawn()).toContain('ask about parking')
-    await click(5, 3)
+    expect(state.file).toMatch(/- \[ \] a\n  ask about parking\n  - \[ \] ring the venue\n/)
     await click(EDGE, 1)
     // a click on the empty part of the pane shuts a task that is opened out
     await click(EDGE, 1)
@@ -377,13 +376,6 @@ test('an agent reads and changes the list through its one tool', async ($, on) =
   expect(state.file).toMatch(/- \[ \] call Sam\n  new number\n/)
   await tasks({ action: 'add', task: 'send invites', note: 'by Friday' })
   expect(state.file).toMatch(/- \[ \] send invites\n  by Friday\n/)
-  // a sub-item is added under a task, and named, ticked and removed like any task, where it stands
-  expect(await tasks({ action: 'add', task: 'draft the email', under: 'invites' })).toMatch(/under \\"send invites\\"/)
-  expect(state.file).toMatch(/- \[ \] send invites\n  by Friday\n  - \[ \] draft the email\n/)
-  await tasks({ action: 'done', task: 'draft the email' })
-  expect(state.file).toMatch(/- \[ \] send invites\n  by Friday\n  - \[x\] draft the email\n/)
-  await tasks({ action: 'remove', task: 'draft' })
-  expect(state.file).toMatch(/- \[ \] send invites\n  by Friday\n(?!  -)/)
 })
 
 // A list that cannot be read is not an empty list: nothing may be saved over it.

@@ -1,6 +1,6 @@
 // Pure edits on the lines of TASKS.md, which is read the way people and agents write task lists:
 // a task is a checkbox item under any bullet (`- [ ]`, `* [x]`, `1. [ ]`), a sublist is a heading
-// of level two or deeper, and the lines indented under a task (notes, sub-items) are that task's
+// of level two or deeper, and the lines indented under a task are its notes: that task's
 // own and travel with it. Everything else in the file is left where it is. The lines above the
 // first sublist are the top list; `head` is a heading's line, -1 for the top list.
 export const TASK = /^(?:[-*+]|\d+[.)]) \[( |x)\] (.*)$/i
@@ -45,62 +45,27 @@ const end = (lines: string[], index: number) => {
 
   return at
 }
-const depth = (line: string) => line.length - line.trimStart().length
 // the file without a task, and the task with what belongs to it
 const lift = (lines: string[], index: number): [string[], string[]] => [
   [...lines.slice(0, index), ...lines.slice(end(lines, index))],
   lines.slice(index, end(lines, index)),
 ]
 
-// What is indented under a task, line by line: `item` is the name of a sub-item (an indented
-// checkbox line, which can be ticked where it stands) and is absent for a line of note.
-export const under = (lines: string[], index: number) =>
-  lines.slice(index + 1, end(lines, index)).map((line, n) => {
-    const item = TASK.exec(line.trim())
-
-    return { line: index + 1 + n, text: item ? item[2] : line.trim(), item: item !== null, isDone: item !== null && item[1] !== ' ' }
-  }).filter(one => one.item || one.text)
-
 // a task's notes: the lines indented under it, as written but for the indent
 export const notesOf = (lines: string[], index: number) => lines.slice(index + 1, end(lines, index)).map(line => line.trim()).filter(Boolean)
 
-// Sets a task's note: the plain lines indented under it are replaced by `note`'s, and an empty
-// note takes them away. Sub-items under the task (indented checkbox lines) are left as they are.
+// Sets a task's note: the lines indented under it are replaced by `note`'s, and an empty note
+// takes them away.
 export const setNote = (lines: string[], index: number, note: string) => {
-  const stop = end(lines, index)
-  const kids = lines.slice(index + 1, stop).filter(line => line.trim())
-  // a sub-item stays, and so does whatever is indented further in, which is a sub-item's own
-  const items = kids.filter(line => TASK.test(line.trim()) || depth(line) > depth(kids[0]))
   const text = note.split('\n').map(line => line.trim()).filter(Boolean).map(line => `  ${line}`)
 
-  return [...lines.slice(0, index + 1), ...text, ...items, ...lines.slice(stop)]
+  return [...lines.slice(0, index + 1), ...text, ...lines.slice(end(lines, index))]
 }
 
-// adds lines of note under a task: after the notes it has, above its sub-items
-export const addNote = (lines: string[], index: number, note: string) => {
-  const stop = end(lines, index)
-  const item = lines.findIndex((line, at) => at > index && at < stop && TASK.test(line.trim()))
-  const at = item < 0 ? stop : item
-
-  return [...lines.slice(0, at), ...note.split('\n').map(line => line.trim()).filter(Boolean).map(line => `  ${line}`), ...lines.slice(at)]
-}
+// adds lines of note under a task, after the notes it has
+export const addNote = (lines: string[], index: number, note: string) => setNote(lines, index, [...notesOf(lines, index), note].join('\n'))
 
 export const remove = (lines: string[], index: number) => lift(lines, index)[0]
-
-// removes a sub-item, with whatever is indented further in under it
-export const removeSub = (lines: string[], index: number) => {
-  let stop = index + 1
-  while (stop < lines.length && lines[stop].trim() && depth(lines[stop]) > depth(lines[index])) stop++
-
-  return [...lines.slice(0, index), ...lines.slice(stop)]
-}
-
-// adds a sub-item at the bottom of what is under a task
-export const addUnder = (lines: string[], index: number, name: string) => {
-  const at = end(lines, index)
-
-  return [...lines.slice(0, at), `  - [ ] ${name}`, ...lines.slice(at)]
-}
 
 // adds lines at the bottom of a list, above the blank lines that close it
 export const insert = (lines: string[], head: number, add: string | string[]): [string[], number] => {
@@ -188,11 +153,10 @@ export const drop = (lines: string[], from: number, before: number | null) => {
 
 // The tasks a name points at: the one whose whole name it is, else every one it is part of.
 // An agent names a task the way a person would, so one match is an answer and more is a question.
-// A sub-item (an indented checkbox line) can be named like any task.
 export const match = (lines: string[], name: string) => {
   const want = name.trim().toLowerCase()
-  const called = (index: number) => nameOf(lines[index].trim()).toLowerCase()
-  const tasks = lines.flatMap((line, index) => (TASK.test(line.trim()) ? [index] : []))
+  const called = (index: number) => nameOf(lines[index]).toLowerCase()
+  const tasks = lines.flatMap((line, index) => (TASK.test(line) ? [index] : []))
   const whole = tasks.filter(index => called(index) === want)
 
   return whole.length || !want ? whole : tasks.filter(index => called(index).includes(want))

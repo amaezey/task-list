@@ -1,6 +1,6 @@
 // bun check.ts
 import assert from 'node:assert/strict'
-import { addList, drop, dropList, file as fileTask, findList, headOf, insert, isDone, isOpen, lay, match, nameOf, notesOf, placeList, remove, rename, setNote, under, tick, toggle, wrap } from './hooks/tasks'
+import { addList, drop, dropList, file as fileTask, findList, headOf, insert, isDone, isOpen, lay, match, nameOf, notesOf, placeList, remove, rename, setNote, tick, toggle, wrap } from './hooks/tasks'
 
 const file = ['- [ ] a', '- [ ] b', '', '## Design', '- [ ] c', '', '## Build', '']
 assert.equal(toggle(file, 0)[0], '- [x] a')
@@ -70,24 +70,18 @@ assert.deepEqual(lay('short', 10, 20), [[0, 5]])
 assert.deepEqual(lay('one two three four five', 8, 12), [[0, 8], [8, 19], [19, 23]]) // a shorter first line, then longer ones
 assert.deepEqual(lay('abcdefghijkl', 5, 5), [[0, 5], [5, 10], [10, 12]]) // a word too long to break at a space
 assert.deepEqual(lay('', 5, 5), [[0, 0]])
-// a note is set, replaced and taken away; a sub-item under the task is left alone
+// a note is set, replaced and taken away
 assert.deepEqual(setNote(['- [ ] a', '- [ ] b'], 0, 'call first\nthen email'), ['- [ ] a', '  call first', '  then email', '- [ ] b'])
-assert.deepEqual(setNote(['- [ ] a', '  old', '  - [ ] sub', '- [ ] b'], 0, 'new'), ['- [ ] a', '  new', '  - [ ] sub', '- [ ] b'])
+assert.deepEqual(setNote(['- [ ] a', '  old', '- [ ] b'], 0, 'new'), ['- [ ] a', '  new', '- [ ] b'])
 assert.deepEqual(setNote(['- [ ] a', '  old', '- [ ] b'], 0, ''), ['- [ ] a', '- [ ] b'])
-assert.deepEqual(under(['- [ ] a', '  a note', '  - [x] sub', '- [ ] b'], 0), [
-  { line: 1, text: 'a note', item: false, isDone: false },
-  { line: 2, text: 'sub', item: true, isDone: true },
-])
-assert.equal(toggle(['- [ ] a', '  - [ ] sub'], 1)[1], '  - [x] sub') // a sub-item is ticked where it stands
 console.log('ok')
 
 // a note with a blank line in it stays whole, and goes with its task
 {
-  const { tick, addNote, removeSub, drop } = await import('./hooks/tasks')
+  const { tick, addNote, drop } = await import('./hooks/tasks')
   const eq = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`) }
   eq(tick(['- [ ] a', '  one', '', '  two', '- [ ] b'], 0), ['- [ ] b', '- [x] a', '  one', '', '  two'])
-  eq(addNote(['- [ ] a', '  one', '  - [ ] sub'], 0, 'two'), ['- [ ] a', '  one', '  two', '  - [ ] sub'])
-  eq(removeSub(['- [ ] a', '  - [ ] sub', '    deep', '  - [ ] next'], 1), ['- [ ] a', '  - [ ] next'])
+  eq(addNote(['- [ ] a', '  one'], 0, 'two'), ['- [ ] a', '  one', '  two'])
   // an open task dropped at the end of a list lands above its done ones
   eq(drop(['- [ ] a', '- [ ] b', '- [x] c'], 0, null), ['- [ ] b', '- [ ] a', '- [x] c'])
   console.log('ok 2')

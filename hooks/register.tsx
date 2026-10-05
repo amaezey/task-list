@@ -3,7 +3,7 @@ import type { Register } from 'claude-code'
 
 import { tall } from './list'
 import type { Row } from './list'
-import { LIST, TASK, bare, shield, addList, addNote, addUnder, drop, dropList, file, findList, headOf, isDone, isOpen, lay, match, nameOf, placeList, remove, removeSub, rename, rooms, setNote, tick, toggle, under } from './tasks'
+import { LIST, TASK, bare, shield, addList, addNote, drop, dropList, file, findList, headOf, isDone, isOpen, lay, match, nameOf, placeList, remove, rename, rooms, setNote, tick, notesOf } from './tasks'
 
 const PANE = 'task-list'
 const FILE = 'TASKS.md'
@@ -16,16 +16,15 @@ const NOTE = '<!-- Tasks, one per line: "- [ ] to do" or "- [x] done". "## Name"
 // The one tool agents get. Its description is the whole briefing: what the list is, where it lives
 // and that the file may be edited directly, so nothing else has to tell an agent the list exists.
 const TOOL = 'mcp__task-list__tasks'
-const BRIEF = `The user's task list for this project, which they see in a side panel. It is ${FILE} in the project folder, plain markdown: "- [ ] name" is a task, "- [x] name" a done one, "## Name" starts a sublist, and lines indented under a task are its notes and sub-items. Use this tool to show the list, to add, finish, reopen or remove a task, or to add a note to one, and when the user asks you to remember something they need to do. For anything else (rename, move, reorder, delete a sublist) edit the file. Every call returns the list as it now stands.`
+const BRIEF = `The user's task list for this project, which they see in a side panel. It is ${FILE} in the project folder, plain markdown: "- [ ] name" is a task, "- [x] name" a done one, "## Name" starts a sublist, and lines indented under a task are its notes. Use this tool to show the list, to add, finish, reopen or remove a task, or to add a note to one, and when the user asks you to remember something they need to do. For anything else (rename, move, reorder, delete a sublist) edit the file. Every call returns the list as it now stands.`
 const INPUT = {
   type: 'object',
   properties: {
-    action: { enum: ['show', 'add', 'done', 'reopen', 'remove', 'note'], description: 'What to do. "remove" takes a task with its notes and sub-items.' },
+    action: { enum: ['show', 'add', 'done', 'reopen', 'remove', 'note'], description: 'What to do. "remove" takes a task with its notes.' },
     task: {
       type: 'string',
-      description: 'For add: the new task. For done, reopen, remove and note: the name of the task or sub-item, or enough of it to mean only one.',
+      description: 'For add: the new task. For done, reopen, remove and note: the name of the task, or enough of it to mean only one.',
     },
-    under: { type: 'string', description: 'For add: the name of an existing task to put this under, as a sub-item of it.' },
     note: { type: 'string', description: 'For note: text to add under the task, after any notes it has; empty takes its notes away. For add: a note to put under the new task.' },
     list: { type: 'string', description: 'For add: the sublist to put it in, whatever its case, created if it is not there. Leave out for no sublist.' },
   },
@@ -110,7 +109,7 @@ const commit = async ($, typed: string) => {
 
 // The tool's answer: what happened in a sentence, then the list. A name that fits no task, or more
 // than one, changes nothing and says so beside the list, which is all an agent needs to try again.
-const answer = async ($, input: { action?: string; task?: string; list?: string; note?: string; under?: string }) => {
+const answer = async ($, input: { action?: string; task?: string; list?: string; note?: string }) => {
   const fresh = (await load($)).split('\n')
   // a name is one line, whatever was sent: a line break in one would write lines of its own into the file
   const task = (input.task ?? '').replace(/\s+/g, ' ').trim()
@@ -123,13 +122,6 @@ const answer = async ($, input: { action?: string; task?: string; list?: string;
   }
   if (input.action === 'show' || !input.action) return say('The task list.', fresh)
   if (!task) return say(`Nothing changed: "${input.action}" needs a task.`, fresh)
-  if (input.action === 'add' && input.under?.trim()) {
-    // a sub-item goes under a task of the list itself, not under another sub-item
-    const over = match(fresh, input.under).filter(index => TASK.test(fresh[index]))
-    if (over.length !== 1) return say(over.length ? `Nothing changed: "${input.under}" fits ${over.length} tasks. Use more of its name.` : `Nothing changed: no task is called "${input.under}".`, fresh)
-
-    return done(`Added "${task}" under "${nameOf(fresh[over[0]])}".`, addUnder(fresh, over[0], task))
-  }
   if (input.action === 'add') {
     const isTop = !list || list.toLowerCase() === TOP.toLowerCase()
     const lines = isTop || findList(fresh, list) >= 0 ? fresh : addList(fresh, list)
@@ -146,16 +138,12 @@ const answer = async ($, input: { action?: string; task?: string; list?: string;
   if (found.length !== 1)
     return say(found.length ? `Nothing changed: "${task}" fits ${found.length} tasks. Use more of its name.` : `Nothing changed: no task is called "${task}".`, fresh)
   const [at] = found
-  // a sub-item is one indented line: it is ticked, or taken out, where it stands
-  const isSub = !TASK.test(fresh[at])
-  const row = fresh[at].trim()
+  const row = fresh[at]
   const name = nameOf(row)
-  const flip = isSub ? toggle : tick
-  if (input.action === 'remove') return done(`Removed "${name}".`, isSub ? removeSub(fresh, at) : remove(fresh, at))
-  if (input.action === 'note' && isSub) return say(`Nothing changed: "${name}" is a sub-item, and a note goes on a task.`, fresh)
+  if (input.action === 'remove') return done(`Removed "${name}".`, remove(fresh, at))
   if (input.action === 'note') return input.note?.trim() ? done(`Noted under "${name}".`, addNote(fresh, at, input.note)) : done(`Took the notes off "${name}".`, setNote(fresh, at, ''))
-  if (input.action === 'done') return isDone(row) ? say(`"${name}" was already done.`, fresh) : done(`Done: "${name}".`, flip(fresh, at))
-  if (input.action === 'reopen') return isOpen(row) ? say(`"${name}" was already open.`, fresh) : done(`Reopened "${name}".`, flip(fresh, at))
+  if (input.action === 'done') return isDone(row) ? say(`"${name}" was already done.`, fresh) : done(`Done: "${name}".`, tick(fresh, at))
+  if (input.action === 'reopen') return isOpen(row) ? say(`"${name}" was already open.`, fresh) : done(`Reopened "${name}".`, tick(fresh, at))
 
   return say(`Nothing changed: "${input.action}" is not show, add, done, reopen, remove or note.`, fresh)
 }
@@ -216,11 +204,7 @@ export const register: Register = on => {
       const read = await $.process.run(['pbpaste']).catch(() => null)
       if (read?.exitCode === 0) await update($, clip, now => ({ n: now.n + 1, text: read.stdout }))
     } else if (did.act === 'copy' && name) await $.ui.copy({ text: name, surface: e.surface })
-    else if (did.act === 'tickSub') {
-      // a sub-item is ticked where it stands, and its task stays opened out
-      const fresh = (await load($)).split('\n')
-      if (/^\s/.test(fresh[line] ?? '') && nameOf((fresh[line] ?? '').trim()) === did.was) await save($, toggle(fresh, line))
-    } else if (did.act === 'shut') {
+    else if (did.act === 'shut') {
       await update($, expanded, () => null)
     }
     else if (did.act === 'hide') {
@@ -363,12 +347,9 @@ export const register: Register = on => {
         const isDone = task[1] !== ' '
         if (isDone && isHiding && !isTyping) return
         const [top, ...more] = linesOf(task[2])
-        // What is under the task: a sub-item is a row of its own that can be ticked, a note is as many
-        // rows of text as it needs. Both stand in from the task's name.
-        const notes: Row[] = under(lines, index).flatMap(one =>
-          one.item
-            ? [{ kind: 'sub' as const, line: one.line, label: one.text, isDone: one.isDone, note: '' }]
-            : lay(one.text, rest - 3, rest - 3).map(([start, end]) => ({ kind: 'more' as const, line: index, label: one.text.slice(start, end).trimEnd(), isDone, note: '', isNote: true })),
+        // What is under the task: its notes, each as many rows of text as it needs, standing in from the task's name.
+        const notes: Row[] = notesOf(lines, index).flatMap(text =>
+          lay(text, rest - 3, rest - 3).map(([start, end]) => ({ kind: 'more' as const, line: index, label: text.slice(start, end).trimEnd(), isDone, note: '', isNote: true })),
         )
         // one arrow for "there is more to this task", whether that is the rest of a long name or its notes
         const note = more.length || notes.length ? 'more' : ''

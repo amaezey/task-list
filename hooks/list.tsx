@@ -9,8 +9,7 @@ export type Row = {
   // in; 'foot' is one of the pane's last two rows: `label` 'list' starts a new sublist, and its `note`
   // is the words at its right end that hide the done tasks or show them again (empty when nothing is
   // done); `label` 'task' starts a new task in General, the tasks in no sublist
-  // 'sub' is a sub-item of the task above it: a checkbox line indented under it in the file
-  kind: 'task' | 'list' | 'gap' | 'more' | 'sub' | 'top' | 'new' | 'newlist' | 'foot'
+  kind: 'task' | 'list' | 'gap' | 'more' | 'top' | 'new' | 'newlist' | 'foot'
   // the line of TASKS.md the row shows; for 'new', the heading line of the list it adds to
   line: number
   // the name as drawn in the row: all of it at rest, its first line when opened out; `name` is always all of it
@@ -37,8 +36,8 @@ type Held = { from: number; over: number } | null
 
 // How tall each row stands, in rows of the grid, and how far down it starts. Everything is in
 // thirds of a row. An item has a third of a row of air under it, which is what sets one item apart
-// from the next; the rows that run on from an item (the rest of its name, its notes, its
-// sub-items) follow with none, so that an item's own lines sit closer than separate items do, and a
+// from the next; the rows that run on from an item (the rest of its name, its notes)
+// follow with none, so that an item's own lines sit closer than separate items do, and a
 // heading sits as close to its first task. Between groups there is a further two thirds: a group
 // is three times as far from the next as an item is from the next. A row never moves when it is
 // opened out, since nothing here depends on whether it is.
@@ -50,7 +49,7 @@ type Held = { from: number; over: number } | null
 // A terminal draws whole rows only: there every row is one row tall, and so is the gap between groups.
 const THIRD = 1 / 3
 export const tall = (rows: Row[], isGrid = false) => {
-  const runsOn = (row?: Row) => row?.kind === 'more' || row?.kind === 'sub'
+  const runsOn = (row?: Row) => row?.kind === 'more'
   let thirds = 0
 
   return rows.map((row, index) => {
@@ -191,8 +190,6 @@ const List: ClientModule<Props, Held> = (props, surface) => {
     if (row.kind === 'top') return fromRight === 0 ? 'plus' : ''
     // a further line of a task's name is the task's name; a note is only to be read
     if (row.kind === 'more') return row.isNote ? '' : 'name'
-    // a sub-item stands in under its task: its circle is where the task's name starts
-    if (row.kind === 'sub') return x >= GRIP + CIRCLE + AIR && x < GRIP + 2 * CIRCLE + AIR ? 'tick' : ''
     if (x < GRIP) return 'grip'
     if (row.kind === 'list') return fromRight === 0 ? 'plus' : 'name'
     // a task with more to show has its arrow, and once opened out, its pencil beside that
@@ -368,7 +365,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
       } else if (!isGrip) {
         // a press on the grip that went nowhere is no click on anything
         // a task's name opens the task out, and shuts it again; a sublist's name is typed over where it stands
-        const act = { tick: row.kind === 'sub' ? 'tickSub' : 'tick', plus: 'add', pencil: 'edit', arrow: 'more', name: row.kind === 'list' ? 'edit' : 'more', task: 'add', list: 'addList', hide: 'hide' }[partOf(row, e.x)]
+        const act = { tick: 'tick', plus: 'add', pencil: 'edit', arrow: 'more', name: row.kind === 'list' ? 'edit' : 'more', task: 'add', list: 'addList', hide: 'hide' }[partOf(row, e.x)]
         // (`was` is the name as drawn: the hooks module changes nothing if the file no longer has it on that line)
         if (act) surface.post({ act, line: row.line, was: row.name ?? row.label })
       }
@@ -548,15 +545,14 @@ const List: ClientModule<Props, Held> = (props, surface) => {
               {typed && index - typing < lines.length ? typedLine(index - typing, false) : name(<Text> </Text>)}
             </Box>
           )
-        // What is under a task stands in from its name, and is a step greyer. A sub-item has its own
-        // circle, where the task's name starts; a note is text only, on the same edge as a sub-item's name.
-        if (row.kind === 'sub' || row.isNote)
+        // A note stands in from its task's name, and is a step greyer.
+        if (row.isNote)
           return (
             <Box flexDirection="row" height={1}>
               {part(GRIP + CIRCLE + AIR, <Text> </Text>)}
-              {part(CIRCLE, row.kind === 'sub' ? <Text {...(lit(index, 'tick') ? {} : grey(MID))}>{row.isDone ? '✓' : '○'}</Text> : <Text> </Text>)}
+              {part(CIRCLE, <Text> </Text>)}
               <Box flexGrow={1} flexShrink={1} minWidth={0} height={1} overflow="hidden">
-                <Text {...grey(MID)} strikethrough={row.kind === 'sub' && row.isDone} wrap="truncate-end">
+                <Text {...grey(MID)} wrap="truncate-end">
                   {row.label}
                 </Text>
               </Box>
