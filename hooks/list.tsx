@@ -113,7 +113,7 @@ const WASH = 'rgba(127, 127, 127, 0.16)'
 // the parts of a row that are icons: pictures the hooks module draws
 const ICONS = ['plus', 'pencil', 'arrow', 'bin', 'close', 'task', 'list']
 // what stands in a picture's slot on a terminal, which has no pictures: the list writes these itself
-const SIGNS: Record<string, string> = { plus: '+', pencil: 'edit', bin: '⌫', close: '×', task: '+', list: '+' }
+const SIGNS: Record<string, string> = { plus: '+', pencil: 'edit', bin: '-', close: '×', task: '+', list: '+' }
 
 // The whole pane: one row per task or sublist on the surface's own grid, which is what lets the
 // pointer be matched to a row. A press and release on one row is a click (the circle ticks, a name

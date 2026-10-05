@@ -407,7 +407,7 @@ export const register: Register = on => {
       if (row.kind === 'top' || (row.kind === 'list' && !row.isTyping)) return [icon(at, 0, PLUS, '+', 'Add a task', 'plus')]
       // the row a name is typed in: the bin (a name that exists), and the cross that closes it unkept
       if (row.isTyping || row.kind === 'new' || row.kind === 'newlist')
-        return [...(row.isTyping ? [icon(at, 3, BIN, '⌫', 'Delete', 'bin')] : []), icon(at, 0, CROSS, '×', 'Close', 'close')]
+        return [...(row.isTyping ? [icon(at, 3, BIN, '-', 'Delete', 'bin')] : []), icon(at, 0, CROSS, '×', 'Close', 'close')]
       // the foot row's starts, each behind a plus
       if (row.kind === 'foot') return [icon(at, -2, PLUS, '+', row.label === 'task' ? 'New task' : 'New list', row.label)]
       if (row.kind !== 'task') return []
