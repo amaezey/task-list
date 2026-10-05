@@ -254,6 +254,8 @@ export const register: Register = on => {
       // a click away from the terminal's field keeps what was typed in it, as it does on the desktop
       await commit($, await read($, draft))
     } else if (did.act === 'close') {
+      // closing a name unchanged folds its task back up, as keeping a changed one does
+      await update($, expanded, () => null)
       await update($, editing, () => null)
       await update($, adding, () => null)
       await update($, draft, () => '')

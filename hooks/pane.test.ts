@@ -115,6 +115,11 @@ for (const surface of ['terminal', 'desktop'] as const)
     expect(await rows()).toBeGreaterThan(9)
     await click(EDGE, 1)
     expect(await rows()).toBe(9)
+    // opened out, its name opened for typing and then clicked away from unchanged, it folds back up
+    await click(EDGE, 1)
+    await click(WIDE - 5, 1)
+    await away()
+    expect(await rows()).toBe(9)
 
     // the circle ticks, and a done task drops under the open ones
     await click(2, 1)
