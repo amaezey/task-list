@@ -2,13 +2,14 @@
 
 A task list panel for Claude Code. You and Claude both work from the same list.
 
-## Panel
+## What it does
 
 - Add, tick off, rename, delete tasks
 - Group tasks into lists
 - Drag to reorder
-- Open a task to read its notes and sub-tasks
 - Hide done tasks
+- Claude reads the same list, and adds or ticks off tasks when you ask
+- Claude can add notes and sub-tasks under a task; open the task to see them
 - Works in the desktop app and the terminal
 
 ## TASKS.md
@@ -26,20 +27,6 @@ A task list panel for Claude Code. You and Claude both work from the same list.
 ## A list
 - [ ] Another task
 ```
-
-## Claude
-
-Claude gets a `tasks` tool. Ask in plain words:
-
-- "What's left on my list?"
-- "Add 'email the printer'"
-- "I've booked the venue" (ticks it off)
-- "Note on the venue: budget is $2,000"
-- "Under 'book the venue', add a step to confirm the date"
-
-Notes and sub-tasks are added by Claude or by editing `TASKS.md`. The panel shows them and lets you tick sub-tasks.
-
-To rename, move or reorder, Claude edits `TASKS.md` directly. The panel updates after each change.
 
 ## Install
 
