@@ -1,0 +1,1 @@
+{ "name": "task-list", "version": "0.1.0", "description": "Track a project's tasks in its TASKS.md, shown in a pane", "types": "./types/index.d.ts" }
