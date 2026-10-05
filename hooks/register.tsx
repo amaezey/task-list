@@ -239,10 +239,16 @@ export const register: Register = on => {
       await update($, adding, () => null)
       // typing somewhere else shuts a task that was opened out; typing over its own name does not
       await update($, expanded, now => (now === line ? now : null))
+      // The rows the name will be written over are there from the first drawing of the field, as many
+      // as the list would ask for: had it to ask, the name's further lines would go and come back.
+      const name = nameOf((await read($, text)).split('\n')[line]) ?? ''
+      const spare = e.surface === 'terminal' ? 0 : lay(name, ...rooms((await read($, wide)) || 40)).length - 1
+      await update($, liveRows, () => Math.max(0, Math.min(20, spare)))
       await update($, editing, () => line)
     } else if (did.act === 'add' || did.act === 'addList') {
       await update($, expanded, () => null)
       await update($, editing, () => null)
+      await update($, liveRows, () => 0)
       await update($, adding, now => (did.act === 'addList' ? 'list' : now === line ? null : line))
     } else if (did.act === 'close' && e.surface === 'terminal' && !did.isCancel && (await read($, draft)).trim()) {
       // a click away from the terminal's field keeps what was typed in it, as it does on the desktop

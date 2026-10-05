@@ -89,11 +89,17 @@ for (const surface of ['terminal', 'desktop'] as const)
 
     // the part under the pointer lights, and only that part: a name comes up from grey to the text colour, and so does a circle
     await pane.pointer({ type: 'move', x: 8, y: await cell(1), in: 'list-0' })
-    expect(await list()).toMatch(/"dimColor":false[^}]*\},"children":\["sandwich/)
+    if (surface === 'terminal') {
+      // a terminal shades the row under the pointer instead, and its task names are plain text
+      expect(await list()).toContain('userMessageBackground')
+    } else {
+      expect(await list()).toMatch(/"dimColor":false[^}]*\},"children":\["sandwich/)
+    }
     await pane.pointer({ type: 'move', x: 2, y: await cell(1), in: 'list-0' })
-    expect(await list()).toMatch(/"dimColor":true[^}]*\},"children":\["sandwich/)
+    if (surface === 'desktop') expect(await list()).toMatch(/"dimColor":true[^}]*\},"children":\["sandwich/)
     expect(await list()).toMatch(/\{"type":"Text","children":\["○"\]\}/)
     await pane.pointer({ type: 'leave', x: 2, y: await cell(1), in: 'list-0' })
+    expect(await list()).not.toContain('userMessageBackground')
     expect(await list()).not.toMatch(/\{"type":"Text","children":\["○"\]\}/)
 
     // an icon under the pointer is drawn again in the text colour, and goes back when the pointer leaves

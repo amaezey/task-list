@@ -206,7 +206,8 @@ const List: ClientModule<Props, Held> = (props, surface) => {
   // narrower than columns, and of different widths); null when the row is not one of the name's.
   const placeAt = (row: number, x: number) => {
     const span = lines[row - typing]
-    if (typing < 0 || !span) return null
+    // (only the row the name is typed in and the rows kept for its further lines are the name's)
+    if (typing < 0 || !span || (row !== typing && !rows[row]?.isLive)) return null
     // a sublist's name starts at its grip's edge, on its own row; a task's stands in past its circle
     const isHead = row === typing && (rows[typing].kind === 'list' || rows[typing].kind === 'newlist')
     const left = isHead ? GRIP : GRIP + CIRCLE + AIR
@@ -214,7 +215,9 @@ const List: ClientModule<Props, Held> = (props, surface) => {
     return Math.max(span[0], Math.min(span[1], span[0] + Math.round(Math.max(0, x - left) * (props.isGrid ? 1 : LETTERS))))
   }
   // A grey that is a step back from the text: on a terminal, which has no see-through colours, the theme's own dim.
-  const grey = (tone: string) => (props.isGrid ? { dimColor: true } : { color: tone })
+  // On a terminal, which has no see-through colours, it is the theme's own grey for what is not the text
+  // ('inactive', as the terminal's own quiet text is), so it is right on a light theme and a dark one.
+  const grey = (tone: string) => (props.isGrid ? { color: 'inactive' } : { color: tone })
   const redraw = () => surface.setState(surface.state ? { ...surface.state } : null)
   if (surface.state === undefined) {
     stopBlink?.()
@@ -341,7 +344,9 @@ const List: ClientModule<Props, Held> = (props, surface) => {
         // The cross at the typing row's right edge closes it unkept. A press in the name was dealt
         // with when it landed. A click anywhere else keeps what was typed.
         const lineAt = from - typing
-        if (lineAt < 0 || lineAt >= lines.length) keep()
+        // A click on any row that is not the name's own is a click away. (Counting rows from the
+        // field would take the rows under it for the name's while its further rows are on their way.)
+        if (from !== typing && !row.isLive) keep()
         else if (lineAt === 0 && partOf(row, e.x) === 'close') {
           typed = null
           surface.post({ act: 'close', isCancel: true })
@@ -458,11 +463,14 @@ const List: ClientModule<Props, Held> = (props, surface) => {
   // A terminal keeps whatever was last written in a cell until something is written over it, so
   // there each row first writes spaces across the whole of itself: a row that moved leaves nothing behind.
   const across = ' '.repeat(Math.max(0, surface.columns))
+  // the row a terminal shades: the one under the pointer, a task or a sublist, when nothing is held or typed
+  const isUnder = (index: number) => !grab && typing < 0 && hotRow === String(index) && isNamed(rows[index])
   const frame = (nth: number, drawn: unknown) =>
     props.isGrid ? (
       <Box height={1}>
         <Box position="absolute" top={0} left={0}>
-          <Text>{across}</Text>
+          {/* the row under the pointer gets the theme's own shade, as the terminal shades a line of the transcript */}
+          <Text {...(isUnder(order[nth]) ? { backgroundColor: 'userMessageBackground' } : {})}>{across}</Text>
         </Box>
         {rows[order[nth]].kind === 'gap' ? null : drawn}
       </Box>
@@ -524,7 +532,8 @@ const List: ClientModule<Props, Held> = (props, surface) => {
           // as the icons do. A done one rests further back again, struck through.
           <Text
             bold={isHeld}
-            dimColor={!row.isDone && !isHeld && !isNameLit(row)}
+            // (on a terminal a task's name is plain text: the grey step there is for counts, notes and what is done)
+            dimColor={!props.isGrid && !row.isDone && !isHeld && !isNameLit(row)}
             {...(row.isDone && !isHeld && !isNameLit(row) ? grey(MID) : {})}
             strikethrough={row.isDone}
             wrap="truncate-end"
