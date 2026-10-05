@@ -125,6 +125,33 @@ for (const surface of ['terminal', 'desktop'] as const)
     expect(state.file).toMatch(/done one\n\n## test\n- \[ \] test 1\n- \[x\] sandwich/)
 
     // rows now: 0 General, 1 done one, 2 gap, 3 test, 4 test 1, 5 sandwich, 6 gap, 7 foot
+    if (surface === 'terminal') {
+      // The list never hears keys on a terminal: a sublist's + lays the terminal's own field over the
+      // new row, and Enter keeps the name.
+      // (each field has a key of its own, read off the drawing)
+      const fieldKey = async () => /"key":"(tl-name-\d+)"/.exec(JSON.stringify(await pane.drawn()))?.[1] ?? ''
+      await click(EDGE, 3)
+      expect(JSON.stringify(await pane.drawn())).toContain('tl-name-')
+      await pane.input({ key: await fieldKey(), text: 'milk' })
+      expect(state.file).toMatch(/## test\n- \[ \] test 1\n- \[ \] milk\n/)
+      // what is typed and then clicked away from is kept, as on the desktop
+      await click(EDGE, 3)
+      await pane.input({ key: await fieldKey(), text: 'eggs', kind: 'change' })
+      await away()
+      expect(state.file).toMatch(/- \[ \] milk\n- \[ \] eggs\n/)
+      // the cross closes it unkept
+      await click(EDGE, 3)
+      await pane.input({ key: await fieldKey(), text: 'thrown away', kind: 'change' })
+      // (the new row closes the list, under its done task: the third row from the bottom)
+      await click(EDGE, (await rows()) - 3)
+      expect(state.file).not.toMatch(/thrown away/)
+      // the foot starts a new sublist the same way
+      await click(2, (await rows()) - 1)
+      await pane.input({ key: await fieldKey(), text: 'Later' })
+      expect(state.file).toMatch(/## Later\n$/)
+
+      return
+    }
     // a sublist's + opens a row to type in, in the list itself; Enter adds and the row stays for the next
     await click(EDGE, 3)
     expect(await list()).toContain('New task')

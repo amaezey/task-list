@@ -48,6 +48,10 @@ const adding = atom({ plugin: 'task-list', key: 'adding' } as const, null)
 // Whether done tasks are left out of the pane. It is how the person likes to look at the list, not
 // part of the list, so it is kept in the mod's own store and TASKS.md never hears of it.
 const hideDone = atom({ plugin: 'task-list', key: 'hideDone' } as const, false)
+// what is in the terminal's own field as it is typed (the terminal only: the list does not hear keys there)
+const draft = atom({ plugin: 'task-list', key: 'draft' } as const, '')
+// which field that is: the terminal keeps a field's text under its key, so each new one takes a new key
+const field = atom({ plugin: 'task-list', key: 'field' } as const, 0)
 
 const load = async $ => {
   // Only a file that is not there is an empty list. A read that fails for any other reason must
@@ -81,6 +85,24 @@ const change = async ($, line: number, label: string, apply: (lines: string[]) =
   if (label !== undefined && nameOf(fresh[line]) === label) await save($, apply(fresh))
 }
 const add = async ($, apply: (lines: string[]) => string[]) => save($, apply((await load($)).split('\n')))
+// keeps the name typed in the terminal's field: as the new name of what is being renamed, or as a
+// new task or sublist where one was being added. An empty name keeps nothing.
+const commit = async ($, typed: string) => {
+  const name = typed.replace(/\s+/g, ' ').trim()
+  const renaming = await read($, editing)
+  const open = await read($, adding)
+  const mirror = (await read($, text)).split('\n')
+  await update($, draft, () => '')
+  await update($, editing, () => null)
+  await update($, adding, () => null)
+  if (!name) return
+  if (renaming !== null) await change($, renaming, nameOf(mirror[renaming]), lines => rename(lines, renaming, name))
+  else if (open === 'list') await add($, fresh => addList(fresh, name))
+  else if (typeof open === 'number') {
+    const put = (fresh: string[]) => file(fresh, open, `- [ ] ${name}`)
+    await (open < 0 ? add($, put) : change($, open, nameOf(mirror[open]), put))
+  }
+}
 
 // The tool's answer: what happened in a sentence, then the list. A name that fits no task, or more
 // than one, changes nothing and says so beside the list, which is all an agent needs to try again.
@@ -159,7 +181,7 @@ export const register: Register = on => {
   // What the person did in the list. The list is one Client: it draws every row, the typing field
   // included, and posts each act here, where the file is.
   on('ui.message', async ($, e, next) => {
-    const did = e.data as { act: string; line?: number; before?: number | null; to?: number; name?: string; was?: string }
+    const did = e.data as { act: string; line?: number; before?: number | null; to?: number; name?: string; was?: string; isCancel?: boolean }
     if (typeof did?.act !== 'string') return next(e)
     const line = did.line ?? -1
     // The name the person saw on this line: what the list says it drew there, else what the mirror
@@ -167,10 +189,14 @@ export const register: Register = on => {
     const label = did.was ?? nameOf((await read($, text)).split('\n')[line])
     const name = (did.name ?? '').trim()
     const put = (fresh: string[]) => file(fresh, line, `- [ ] ${name}`)
-    // On a terminal a click in the list does not take the keyboard from the prompt, so what is typed
-    // next would go to the prompt. A name about to be typed asks for the keyboard for the pane. (The
-    // terminal grants that only while the prompt is empty; otherwise a click in the row still takes it.)
-    if (e.surface === 'terminal' && (did.act === 'add' || did.act === 'addList' || did.act === 'edit')) void $.ui.open({ id: PANE, title: 'Tasks', focus: true }).catch(() => {})
+    // On a terminal the list never hears the keys: a name is typed in the terminal's own field, laid
+    // over the row, and the pane asks for the keyboard so the field has it. (The terminal grants that
+    // only while the prompt is empty.)
+    if (e.surface === 'terminal' && (did.act === 'add' || did.act === 'addList' || did.act === 'edit')) {
+      await update($, draft, () => '')
+      await update($, field, now => now + 1)
+      void $.ui.open({ id: PANE, title: 'Tasks', focus: true }).catch(() => {})
+    }
     if (did.act === 'tick') await change($, line, label, lines => tick(lines, line))
     else if (did.act === 'drop') await change($, line, label, lines => drop(lines, line, did.before ?? null))
     else if (did.act === 'place') await change($, line, label, lines => placeList(lines, line, did.to ?? 0))
@@ -214,10 +240,23 @@ export const register: Register = on => {
       await update($, expanded, () => null)
       await update($, editing, () => null)
       await update($, adding, now => (did.act === 'addList' ? 'list' : now === line ? null : line))
+    } else if (did.act === 'close' && e.surface === 'terminal' && !did.isCancel && (await read($, draft)).trim()) {
+      // a click away from the terminal's field keeps what was typed in it, as it does on the desktop
+      await commit($, await read($, draft))
     } else if (did.act === 'close') {
       await update($, editing, () => null)
       await update($, adding, () => null)
+      await update($, draft, () => '')
     }
+
+    return next(e)
+  })
+
+  // the terminal's own field: each edit is kept as it is typed, and Enter keeps the name
+  on('ui.input', async ($, e, next) => {
+    if (!e.element.startsWith('tl-name')) return next(e)
+    if (e.kind === 'submit') await commit($, e.value ?? '')
+    else await update($, draft, () => e.value ?? '')
 
     return next(e)
   })
@@ -378,6 +417,7 @@ export const register: Register = on => {
     // The list's rows stand at different heights, and the pictures are laid under it row for row:
     // a box for each row, as tall as the list draws that row, with the row's pictures on its first line.
     const sizes = tall(rows, isGrid)
+    const typingAt = rows.findIndex(row => row.isTyping || row.kind === 'new' || row.kind === 'newlist')
     const total = sizes.reduce((sum, size) => sum + size.height, 0)
     // the list is drawn down to the bottom of the pane, so that a click on the empty part of the pane is a click in the list
     const down = Math.max(total, Math.max(e.viewport?.rows ?? 0, e.props.scroll?.bodyRows ?? 0) - 3)
@@ -402,6 +442,20 @@ export const register: Register = on => {
               />
             )}
           </Box>
+          {/* On a terminal a name is typed in the terminal's own field, laid over its row where the
+              name stands (a task's past its circle, a sublist's past its grip) and short of the row's
+              two right-hand slots. */}
+          {isGrid && typingAt >= 0 && 'Input' in table && (
+            <Box position="absolute" top={sizes.slice(0, typingAt).reduce((sum, size) => sum + size.height, 0)} left={rows[typingAt].kind === 'list' || rows[typingAt].kind === 'newlist' ? 2 : 5} right={6} height={1}>
+              <table.Input
+                key={`tl-name-${await read($, field)}`}
+                autoFocus
+                value={rows[typingAt].isTyping ? (rows[typingAt].name ?? '') : ''}
+                placeholder={rows[typingAt].kind === 'newlist' ? 'New list' : 'New task'}
+                onSubmit={() => {}}
+              />
+            </Box>
+          )}
         </Box>
       </Box>
     )

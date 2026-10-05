@@ -156,7 +156,8 @@ const List: ClientModule<Props, Held> = (props, surface) => {
   if (typed && props.paste.n !== pasted) edit(...span(), props.paste.text.replace(/\s+/g, ' '))
   pasted = props.paste.n
   // the name as lines of the pane's width, each a stretch of the text
-  const lines = typed ? lay(typed.text, ...rooms(surface.columns, props.isGrid)) : []
+  // (on a terminal the name is typed in the terminal's own field, laid over the row: the list keeps one empty line for it)
+  const lines: [number, number][] = !typed ? [] : props.isGrid ? [[0, 0]] : lay(typed.text, ...rooms(surface.columns, props.isGrid))
   // the hooks module lays out the rows, so it is told how wide the pane is and how many rows the name needs now
   if (surface.columns > 0 && props.wide !== surface.columns) surface.post({ act: 'wide', n: surface.columns })
   const kept = rows.filter(row => row.isLive).length
@@ -340,7 +341,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
         if (lineAt < 0 || lineAt >= lines.length) keep()
         else if (lineAt === 0 && partOf(row, e.x) === 'close') {
           typed = null
-          surface.post({ act: 'close' })
+          surface.post({ act: 'close', isCancel: true })
         } else if (lineAt === 0 && partOf(row, e.x) === 'bin') {
           typed = null
           surface.post({ act: 'remove', line: row.line, was: row.name ?? row.label })
@@ -403,6 +404,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
   // One line of the name being typed: its letters, the selection reversed out, and the cursor.
   // (a sublist's name stands a quarter column in, a task's a whole one: typed, each stays where it stood)
   const typedLine = (lineAt: number, isBold: boolean) => {
+    if (props.isGrid) return name(<Text> </Text>)
     const [start, end] = lines[lineAt] ?? [0, 0]
     const [from, to] = span()
     const cut = (a: number, b: number) => typed.text.slice(Math.max(start, Math.min(end, a)), Math.max(start, Math.min(end, b)))
@@ -447,8 +449,18 @@ const List: ClientModule<Props, Held> = (props, surface) => {
 
   // each row in the height it stands at, its text at the top of it under any air it has above
   const sizes = tall(order.map(index => rows[index]), props.isGrid)
+  // A terminal keeps whatever was last written in a cell until something is written over it, so
+  // there each row first writes spaces across the whole of itself: a row that moved leaves nothing behind.
+  const across = ' '.repeat(Math.max(0, surface.columns))
   const frame = (nth: number, drawn: unknown) =>
-    rows[order[nth]].kind === 'gap' ? (
+    props.isGrid ? (
+      <Box height={1}>
+        <Box position="absolute" top={0} left={0}>
+          <Text>{across}</Text>
+        </Box>
+        {rows[order[nth]].kind === 'gap' ? null : drawn}
+      </Box>
+    ) : rows[order[nth]].kind === 'gap' ? (
       <Box height={sizes[nth].height} />
     ) : (
       <Box flexDirection="column" height={sizes[nth].height} paddingTop={sizes[nth].top}>
@@ -557,6 +569,8 @@ const List: ClientModule<Props, Held> = (props, surface) => {
           </Box>
         )
       })()))}
+      {/* and the rows under the last one, which the list may have just given back */}
+      {props.isGrid && Array.from({ length: Math.max(0, surface.rows - order.length) }, () => <Text>{across}</Text>)}
     </Box>
   )
 }
