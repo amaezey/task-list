@@ -167,6 +167,10 @@ export const register: Register = on => {
     const label = did.was ?? nameOf((await read($, text)).split('\n')[line])
     const name = (did.name ?? '').trim()
     const put = (fresh: string[]) => file(fresh, line, `- [ ] ${name}`)
+    // On a terminal a click in the list does not take the keyboard from the prompt, so what is typed
+    // next would go to the prompt. A name about to be typed asks for the keyboard for the pane. (The
+    // terminal grants that only while the prompt is empty; otherwise a click in the row still takes it.)
+    if (e.surface === 'terminal' && (did.act === 'add' || did.act === 'addList' || did.act === 'edit')) void $.ui.open({ id: PANE, title: 'Tasks', focus: true }).catch(() => {})
     if (did.act === 'tick') await change($, line, label, lines => tick(lines, line))
     else if (did.act === 'drop') await change($, line, label, lines => drop(lines, line, did.before ?? null))
     else if (did.act === 'place') await change($, line, label, lines => placeList(lines, line, did.to ?? 0))
@@ -331,12 +335,13 @@ export const register: Register = on => {
       }
     })
     newIn(head)
+    // a new sublist is typed where the foot stood, so a second click on the same spot lands in it
     if (open === 'list') rows.push(...(rows.length ? [blank('gap')] : []), blank('newlist'), ...liveUnder(-1))
     const isEmpty = !rows.length
     // The foot: what it starts, and the words that hide what is done (only where something is done).
     // Once there is a sublist every heading has its own plus, and the foot starts sublists alone.
     const finished = lines.filter(line => isDone(line)).length
-    rows.push(...(rows.length ? [blank('gap')] : []), { ...blank('foot'), hasTask: !heads.length, note: !finished ? '' : isHiding ? `Show ${finished} done` : 'Hide done' })
+    rows.push(...(rows.length && open !== 'list' ? [blank('gap')] : []), { ...blank('foot'), hasTask: !heads.length, note: !finished ? '' : isHiding ? `Show ${finished} done` : 'Hide done' })
 
     // An icon is a picture laid on row `at` (placed against that row's own box), in a slot the list leaves clear there: the list cannot
     // draw one. `side` counts columns from the pane's right edge, or from its left when negative
