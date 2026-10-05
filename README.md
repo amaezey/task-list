@@ -9,7 +9,7 @@ A task list panel for Claude Code. You and Claude both work from the same list.
 - Drag to reorder
 - Hide done tasks
 - Claude reads the same list, and adds or ticks off tasks when you ask
-- Claude can add notes and sub-tasks under a task; open the task to see them
+- Claude can add a note under a task; open the task to read it
 - Works in the desktop app and the terminal
 
 ## TASKS.md
@@ -21,7 +21,6 @@ A task list panel for Claude Code. You and Claude both work from the same list.
 ```markdown
 - [ ] A task
   A note
-  - [ ] A sub-task
 - [x] A done task
 
 ## A list
