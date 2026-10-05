@@ -72,9 +72,9 @@ for (const surface of ['terminal', 'desktop'] as const)
     // (the cursor: a bar between two letters, or on a terminal the one letter it stands before, reversed out)
     const typing = async () => (surface === 'terminal' ? /"inverse":true\},"children":\[".?"\]/ : /"width":0[^\]]*\["\|"\]/).test(await list())
     expect(await list()).toMatch(/General.*1 to do.*sandwich.*done one.*test.*1 to do.*test 1.*New list.*Hide done/)
-    // with a sublist in the file every heading has its plus, and the foot starts sublists only
-    expect(await list()).not.toContain('New task')
-    expect(await rows()).toBe(8)
+    // the foot is two rows: a new sublist (with what hides the done tasks), then a new task
+    expect(await list()).toMatch(/New list.*Hide done.*New task/)
+    expect(await rows()).toBe(9)
     // a terminal has whole rows only and no pictures: every row is one tall, and the list writes its own signs
     const heights = ((await pane.drawn({ in: 'list-0' })) as { children: { props: { height: number } }[] }).children.map(kid => kid.props.height)
     expect(heights.every(Number.isInteger)).toBe(surface === 'terminal')
@@ -106,9 +106,9 @@ for (const surface of ['terminal', 'desktop'] as const)
     expect(await inked()).toBe(0)
     // a long name's mark opens it out over further rows, and closes it again
     await click(EDGE, 1)
-    expect(await rows()).toBeGreaterThan(8)
+    expect(await rows()).toBeGreaterThan(9)
     await click(EDGE, 1)
-    expect(await rows()).toBe(8)
+    expect(await rows()).toBe(9)
 
     // the circle ticks, and a done task drops under the open ones
     await click(2, 1)
@@ -143,10 +143,10 @@ for (const surface of ['terminal', 'desktop'] as const)
       await click(EDGE, 3)
       await pane.input({ key: await fieldKey(), text: 'thrown away', kind: 'change' })
       // (the new row closes the list, under its done task: the third row from the bottom)
-      await click(EDGE, (await rows()) - 3)
+      await click(EDGE, (await rows()) - 4)
       expect(state.file).not.toMatch(/thrown away/)
       // the foot starts a new sublist the same way
-      await click(2, (await rows()) - 1)
+      await click(2, (await rows()) - 2)
       await pane.input({ key: await fieldKey(), text: 'Later' })
       expect(state.file).toMatch(/## Later\n$/)
 
@@ -240,9 +240,14 @@ for (const surface of ['terminal', 'desktop'] as const)
     await click(WIDE - 5, 1)
     expect(state.file).not.toMatch(/renamed/)
 
-    // the foot row starts a sublist
-    const foot = async () => (await rows()) - 1
-    await click(2, await foot())
+    // the foot's last row starts a task at the end of the last list, the row above it a sublist
+    await click(2, (await rows()) - 1)
+    expect(await typing()).toBe(true)
+    await type('last')
+    await key('return')
+    expect(state.file).toMatch(/- \[ \] last\n- \[x\] sandwich/)
+    await away()
+    await click(2, (await rows()) - 2)
     expect(await typing()).toBe(true)
     await type('Later')
     await key('return')

@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { FOOT, tall } from './list'
+import { tall } from './list'
 import type { Row } from './list'
 import { LIST, TASK, bare, shield, addList, addNote, addUnder, drop, dropList, file, findList, headOf, isDone, isOpen, lay, match, nameOf, placeList, remove, removeSub, rename, rooms, setNote, tick, toggle, under } from './tasks'
 
@@ -377,10 +377,14 @@ export const register: Register = on => {
     // a new sublist is typed where the foot stood, so a second click on the same spot lands in it
     if (open === 'list') rows.push(...(rows.length ? [blank('gap')] : []), blank('newlist'), ...liveUnder(-1))
     const isEmpty = !rows.length
-    // The foot: what it starts, and the words that hide what is done (only where something is done).
-    // Once there is a sublist every heading has its own plus, and the foot starts sublists alone.
+    // The foot: a row that starts a sublist, with the words that hide what is done at its right end
+    // (only where something is done), and under it a row that starts a task at the end of the last list.
     const finished = lines.filter(line => isDone(line)).length
-    rows.push(...(rows.length && open !== 'list' ? [blank('gap')] : []), { ...blank('foot'), hasTask: !heads.length, note: !finished ? '' : isHiding ? `Show ${finished} done` : 'Hide done' })
+    rows.push(
+      ...(rows.length && open !== 'list' ? [blank('gap')] : []),
+      { ...blank('foot'), label: 'list', note: !finished ? '' : isHiding ? `Show ${finished} done` : 'Hide done' },
+      { ...blank('foot', heads.at(-1) ?? -1), label: 'task' },
+    )
 
     // An icon is a picture laid on row `at` (placed against that row's own box), in a slot the list leaves clear there: the list cannot
     // draw one. `side` counts columns from the pane's right edge, or from its left when negative
@@ -405,7 +409,7 @@ export const register: Register = on => {
       if (row.isTyping || row.kind === 'new' || row.kind === 'newlist')
         return [...(row.isTyping ? [icon(at, 3, BIN, '⌫', 'Delete', 'bin')] : []), icon(at, 0, CROSS, '×', 'Close', 'close')]
       // the foot row's starts, each behind a plus
-      if (row.kind === 'foot') return row.hasTask ? [icon(at, -2, PLUS, '+', 'New task', 'task'), icon(at, -2 - FOOT, PLUS, '+', 'New list', 'list')] : [icon(at, -2, PLUS, '+', 'New list', 'list')]
+      if (row.kind === 'foot') return [icon(at, -2, PLUS, '+', row.label === 'task' ? 'New task' : 'New list', row.label)]
       if (row.kind !== 'task') return []
       // an opened-out task has its pencil where the bin stands once the name is open; a task with more to show has its arrow
       const pencil = row.isOpen ? [icon(at, 3, PENCIL, '✎', 'Edit', 'pencil')] : []

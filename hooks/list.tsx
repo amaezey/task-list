@@ -6,7 +6,9 @@ import { lay, rooms } from './tasks'
 export type Row = {
   // 'more' is a further line of the task above it, shown while that task is opened out; 'top' is the
   // fixed heading over the tasks in no sublist; 'new' and 'newlist' are the row a new name is typed
-  // in; 'foot' is the pane's last row, which starts a new task or a new sublist
+  // in; 'foot' is one of the pane's last two rows: `label` 'list' starts a new sublist, and its `note`
+  // is the words at its right end that hide the done tasks or show them again (empty when nothing is
+  // done); `label` 'task' starts a new task at the end of the last list, whose heading is its `line`
   // 'sub' is a sub-item of the task above it: a checkbox line indented under it in the file
   kind: 'task' | 'list' | 'gap' | 'more' | 'sub' | 'top' | 'new' | 'newlist' | 'foot'
   // the line of TASKS.md the row shows; for 'new', the heading line of the list it adds to
@@ -25,10 +27,6 @@ export type Row = {
   isTyping?: boolean
   // a 'more' row kept under an open field for the list to write the name in, whole, as it is typed
   isLive?: boolean
-  // the foot row starts a new task as well as a new sublist: only while there is no sublist, since
-  // once there is one every heading has its own plus. (The foot's `note` is the words at its right
-  // end that hide the done tasks or show them again; empty when nothing is done.)
-  hasTask?: boolean
 }
 // `paste` is the clipboard as the hooks module last read it for this list; `n` tells one read from the next
 // `wide` is the pane's width in columns as the hooks module last heard it from this list
@@ -115,7 +113,7 @@ const WASH = 'rgba(127, 127, 127, 0.16)'
 // the parts of a row that are icons: pictures the hooks module draws
 const ICONS = ['plus', 'pencil', 'arrow', 'bin', 'close', 'task', 'list']
 // what stands in a picture's slot on a terminal, which has no pictures: the list writes these itself
-const SIGNS: Record<string, string> = { plus: '+', pencil: '✎', bin: '⌫', close: '×', task: '+', list: '+' }
+const SIGNS: Record<string, string> = { plus: '+', pencil: 'edit', bin: '⌫', close: '×', task: '+', list: '+' }
 
 // The whole pane: one row per task or sublist on the surface's own grid, which is what lets the
 // pointer be matched to a row. A press and release on one row is a click (the circle ticks, a name
@@ -188,7 +186,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
     if (row.kind === 'foot') {
       if (row.note && x >= surface.columns - 1 - row.note.length) return 'hide'
 
-      return ((row.hasTask ? ['task', 'list'] : ['list'])[Math.floor(x / FOOT)] ?? '') as Part
+      return x < FOOT ? (row.label === 'task' ? 'task' : 'list') : ''
     }
     if (row.kind === 'top') return fromRight === 0 ? 'plus' : ''
     // a further line of a task's name is the task's name; a note is only to be read
@@ -199,7 +197,8 @@ const List: ClientModule<Props, Held> = (props, surface) => {
     if (row.kind === 'list') return fromRight === 0 ? 'plus' : 'name'
     // a task with more to show has its arrow, and once opened out, its pencil beside that
     if (fromRight === 0 && (row.isOpen || row.note !== '')) return row.note !== '' ? 'arrow' : ''
-    if (fromRight === 1 && row.isOpen) return 'pencil'
+    // (a terminal's pencil is a word four columns wide)
+    if (row.isOpen && (props.isGrid ? surface.columns - 1 - x >= EDGE && surface.columns - 1 - x < EDGE + 4 : fromRight === 1)) return 'pencil'
 
     return x < GRIP + CIRCLE ? 'tick' : 'name'
   }
@@ -214,6 +213,8 @@ const List: ClientModule<Props, Held> = (props, surface) => {
 
     return Math.max(span[0], Math.min(span[1], span[0] + Math.round(Math.max(0, x - left) * (props.isGrid ? 1 : LETTERS))))
   }
+  // A grey that is a step back from the text: on a terminal, which has no see-through colours, the theme's own dim.
+  const grey = (tone: string) => (props.isGrid ? { dimColor: true } : { color: tone })
   const redraw = () => surface.setState(surface.state ? { ...surface.state } : null)
   if (surface.state === undefined) {
     stopBlink?.()
@@ -362,7 +363,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
         // a task's name opens the task out, and shuts it again; a sublist's name is typed over where it stands
         const act = { tick: row.kind === 'sub' ? 'tickSub' : 'tick', plus: 'add', pencil: 'edit', arrow: 'more', name: row.kind === 'list' ? 'edit' : 'more', task: 'add', list: 'addList', hide: 'hide' }[partOf(row, e.x)]
         // (`was` is the name as drawn: the hooks module changes nothing if the file no longer has it on that line)
-        if (act) surface.post({ act, line: row.kind === 'foot' ? -1 : row.line, was: row.name ?? row.label })
+        if (act) surface.post({ act, line: row.line, was: row.name ?? row.label })
       }
       surface.setState(null)
     }
@@ -384,13 +385,16 @@ const List: ClientModule<Props, Held> = (props, surface) => {
   )
   // a slot the hooks module lays a picture under: clear, so the picture shows
   // (a terminal has no pictures, so there the list writes the sign itself)
+  // (a terminal has no drawing that reads as a pencil, so there it is the word, in a slot a column wider)
   const slot = (index: number, what: Part) =>
-    part(EDGE, <Text dimColor={!lit(index, what)}>{props.isGrid ? ` ${what === 'arrow' ? (rows[index].isOpen ? 'v' : '>') : SIGNS[what]}` : ' '}</Text>)
+    props.isGrid && what === 'pencil'
+      ? part(4, <Text dimColor={!lit(index, what)}>{SIGNS.pencil}</Text>)
+      : part(EDGE, <Text dimColor={!lit(index, what)}>{props.isGrid ? ` ${what === 'arrow' ? (rows[index].isOpen ? 'v' : '>') : SIGNS[what]}` : ' '}</Text>)
   const grip = (index: number, isLive: boolean) =>
     part(
       GRIP,
       isLive ? (
-        <Text {...(held?.from === index || lit(index, 'grip') ? {} : { color: FAINT })}>⠿</Text>
+        <Text {...(held?.from === index || lit(index, 'grip') ? {} : grey(FAINT))}>⠿</Text>
       ) : (
         <Text dimColor> </Text>
       ),
@@ -439,7 +443,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
     return (
       <Box flexDirection="row" height={1}>
         {grip(index, false)}
-        {!isList && part(CIRCLE, <Text color={MID}>{row.isDone ? '✓' : '○'}</Text>)}
+        {!isList && part(CIRCLE, <Text {...grey(MID)}>{row.isDone ? '✓' : '○'}</Text>)}
         {typedLine(0, isList)}
         {isNamed(row) ? slot(index, 'bin') : part(EDGE, <Text> </Text>)}
         {slot(index, 'close')}
@@ -479,7 +483,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
           return (
             <Box flexDirection="row" height={1}>
               {/* each start is a plus (a picture, under its slot) and its words; both go to the text colour together */}
-              {[['task', 'New task'], ['list', 'New list']].slice(row.hasTask ? 0 : 1).map(([what, words]) => (
+              {[[row.label, row.label === 'task' ? 'New task' : 'New list']].map(([what, words]) => (
                 <Box width={FOOT} flexShrink={0} flexDirection="row">
                   {/* the plus stands in the column of the circles, and its words where the names of tasks start */}
                   {part(GRIP - 1, <Text> </Text>)}
@@ -491,7 +495,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
               {/* looking, not making: it stands apart at the row's other end, as quiet as the counts,
                   and ends where the pictures above it end (a picture sits half a column in from the pane's edge) */}
               <Box flexGrow={1} flexShrink={1} minWidth={0} height={1} overflow="hidden" flexDirection="row" justifyContent="flex-end" paddingRight={0.5}>
-                <Text {...(lit(index, 'hide') ? {} : { color: MID })}>{row.note}</Text>
+                <Text {...(lit(index, 'hide') ? {} : grey(MID))}>{row.note}</Text>
               </Box>
             </Box>
           )
@@ -507,7 +511,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
               </Box>
               <Box flexShrink={0} paddingLeft={1}>
                 {/* a count is the least of what a heading says: a step greyer than a task's name, done or not */}
-                <Text color={MID}>{row.note}</Text>
+                <Text {...grey(MID)}>{row.note}</Text>
               </Box>
               {slot(index, 'plus')}
             </Box>
@@ -519,7 +523,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
           <Text
             bold={isHeld}
             dimColor={!row.isDone && !isHeld && !isNameLit(row)}
-            {...(row.isDone && !isHeld && !isNameLit(row) ? { color: MID } : {})}
+            {...(row.isDone && !isHeld && !isNameLit(row) ? grey(MID) : {})}
             strikethrough={row.isDone}
             wrap="truncate-end"
           >
@@ -539,9 +543,9 @@ const List: ClientModule<Props, Held> = (props, surface) => {
           return (
             <Box flexDirection="row" height={1}>
               {part(GRIP + CIRCLE + AIR, <Text> </Text>)}
-              {part(CIRCLE, row.kind === 'sub' ? <Text {...(lit(index, 'tick') ? {} : { color: MID })}>{row.isDone ? '✓' : '○'}</Text> : <Text> </Text>)}
+              {part(CIRCLE, row.kind === 'sub' ? <Text {...(lit(index, 'tick') ? {} : grey(MID))}>{row.isDone ? '✓' : '○'}</Text> : <Text> </Text>)}
               <Box flexGrow={1} flexShrink={1} minWidth={0} height={1} overflow="hidden">
-                <Text color={MID} strikethrough={row.kind === 'sub' && row.isDone} wrap="truncate-end">
+                <Text {...grey(MID)} strikethrough={row.kind === 'sub' && row.isDone} wrap="truncate-end">
                   {row.label}
                 </Text>
               </Box>
@@ -560,7 +564,7 @@ const List: ClientModule<Props, Held> = (props, surface) => {
             {grip(index, true)}
             {part(
               CIRCLE,
-              <Text {...(lit(index, 'tick') ? {} : { color: MID })}>{row.isDone ? '✓' : '○'}</Text>,
+              <Text {...(lit(index, 'tick') ? {} : grey(MID))}>{row.isDone ? '✓' : '○'}</Text>,
             )}
             {name(label)}
             {/* the slots the hooks module draws in: the pencil of an opened-out task, then its arrow */}
