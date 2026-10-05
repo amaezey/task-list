@@ -1,16 +1,45 @@
 # task-list
 
-A task list panel for Claude Code. Tasks live in a `TASKS.md` in your project folder.
+A task list panel for Claude Code. You and Claude both work from the same list.
 
-## What it does
+## Panel
 
 - Add, tick off, rename, delete tasks
 - Group tasks into lists
 - Drag to reorder
-- Notes and sub-items under a task
+- Open a task to read its notes and sub-tasks
 - Hide done tasks
-- Ask Claude to add, finish or remove tasks for you
 - Works in the desktop app and the terminal
+
+## TASKS.md
+
+- At the project root, created with your first task
+- Plain markdown, one list per project
+- Edit it by hand any time
+
+```markdown
+- [ ] A task
+  A note
+  - [ ] A sub-task
+- [x] A done task
+
+## A list
+- [ ] Another task
+```
+
+## Claude
+
+Claude gets a `tasks` tool. Ask in plain words:
+
+- "What's left on my list?"
+- "Add 'email the printer'"
+- "I've booked the venue" (ticks it off)
+- "Note on the venue: budget is $2,000"
+- "Under 'book the venue', add a step to confirm the date"
+
+Notes and sub-tasks are added by Claude or by editing `TASKS.md`. The panel shows them and lets you tick sub-tasks.
+
+To rename, move or reorder, Claude edits `TASKS.md` directly. The panel updates after each change.
 
 ## Install
 
@@ -24,18 +53,6 @@ Start a new Claude Code session, then type `/task`.
 
 ```bash
 git -C ~/.claude/skills/task-list pull
-```
-
-## TASKS.md
-
-```markdown
-- [ ] A task
-  A note
-  - [ ] A sub-item
-- [x] A done task
-
-## A list
-- [ ] Another task
 ```
 
 ## Needs
